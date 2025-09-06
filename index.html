@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>理貨數量計算器｜純網頁版</title>
+  <meta name="theme-color" content="#0ea5e9">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <style>
+    :root{--bg:#f7fafc;--card:#fff;--ink:#0f172a;--sub:#475569;--line:#e2e8f0;--accent:#111827}
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"}
+    .wrap{max-width:680px;margin:0 auto;padding:16px 16px 96px}
+    h1{font-size:22px;margin:8px 0 2px}
+    p.lead{margin:0 0 14px;color:var(--sub);font-size:12px}
+    .grid{display:grid;gap:12px}
+    .g2{grid-template-columns:1fr 1fr}
+    .g3{grid-template-columns:1fr 1fr 1fr}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    .field{padding:1px;border-radius:14px;border:1px solid var(--line);background:#fff;cursor:pointer}
+    .field.active{outline:2px solid var(--accent)}
+    .label{font-size:12px;color:var(--sub)}
+    .value{font-size:24px;font-weight:700;letter-spacing:.5px}
+    .hint{font-size:10px;color:var(--sub)}
+    .btn{border:1px solid var(--line);background:#fff;border-radius:12px;padding:10px 12px;font-size:14px;cursor:pointer}
+    .btn:active{transform:scale(.98)}
+    .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+    .btn.ghost{background:#f1f5f9}
+    .row{display:flex;gap:8px;align-items:center}
+    .row.space{justify-content:space-between}
+    .k{height:56px;border-radius:14px;border:1px solid var(--line);background:#fff;font-size:20px;font-weight:600;cursor:pointer}
+    .k:active{transform:scale(.97)}
+    .k.ghost{background:#f1f5f9}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+    .muted{color:var(--sub);font-size:12px}
+    .hist-item{padding:10px;border-radius:12px}
+    .hist-item:hover{background:#f8fafc}
+    .badge{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:2px 8px;font-size:11px;color:var(--sub)}
+    .foot{position:fixed;left:0;right:0;bottom:12px;display:flex;justify-content:center}
+    .foot>div{background:#111827;color:#fff;border-radius:999px;padding:8px 12px;font-size:12px;box-shadow:0 6px 16px rgba(0,0,0,.15)}
+    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    *{user-select:none}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <h1>理貨計算器</h1>
+    </header>
+
+    <!-- 兩個顯示欄位：點擊切換目前輸入目標 -->
+    <section class="grid g2">
+      <button id="f-demand" class="field active" aria-pressed="true">
+        <div class="label">需求數量</div>
+        <div id="v-demand" class="value">100</div>
+      </button>
+      <button id="f-perbox" class="field" aria-pressed="false">
+        <div class="label">每箱數量</div>
+        <div id="v-perbox" class="value">30</div>
+        <div class="hint" aria-hidden="true">　</div>
+      </button>
+    </section>
+
+    <!-- 快捷操作列 -->
+    <section class="grid g3" style="margin-top:10px">
+      <button class="btn" data-nudge="-10">-10</button>
+      <button class="btn" data-nudge="-1">-1</button>
+      <button class="btn" data-nudge="+1">+1</button>
+      <button class="btn" data-nudge="+10">+10</button>
+      <button id="swap" class="btn">切換輸入</button>
+      <button id="clear" class="btn">清空目前欄位</button>
+      
+    </section>
+
+    <!-- 結果卡片 -->
+    <section class="card" style="margin-top:12px">
+      <div class="row space">
+        <div><strong>計算結果</strong></div>
+        <div class="muted">即時更新</div>
+      </div>
+      <div id="warn" class="muted" style="margin-top:6px; display:none; color:#b91c1c">請設定「每箱數量」 &gt; 0</div>
+      <div id="res" style="margin-top:8px">
+        <div class="mono" id="r1">最省空間：3 箱 + 10 個</div>
+        <div class="mono" id="r2" style="margin-top:4px">滿箱出貨：4 箱 - 20 個</div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button id="copy" class="btn">複製結果</button>
+		<button id="save" class="btn primary">加入紀錄</button>
+      </div>
+    </section>
+
+    <!-- 數位鍵盤 -->
+    <section class="card" style="margin-top:12px">
+      <div class="grid g3" id="pad"></div>
+    </section>
+
+    <!-- 歷史紀錄 -->
+    <section class="card" style="margin-top:12px">
+      <div class="row space">
+        <strong>歷史紀錄</strong>
+        <button id="clearHist" class="btn ghost">全部清除</button>
+      </div>
+      <div id="hist-empty" class="muted" style="margin-top:6px">尚無紀錄，先按「加入紀錄」。</div>
+      <ul id="hist" style="list-style:none;padding:0;margin:6px 0 0"></ul>
+    </section>
+  </main>
+
+  <script>
+    // 狀態
+    const storeKey = "shipcalc.history.v1";
+    const storeLast = "shipcalc.last.v1";
+
+    let state = {
+      active: "demand", // 'demand' | 'perBox'
+      demand: 100,
+      perBox: 30,
+      history: []
+    };
+
+    // 元素
+    const fDemand = document.getElementById('f-demand');
+    const fPerBox = document.getElementById('f-perbox');
+    const vDemand = document.getElementById('v-demand');
+    const vPerBox = document.getElementById('v-perbox');
+    const r1 = document.getElementById('r1');
+    const r2 = document.getElementById('r2');
+    const warn = document.getElementById('warn');
+    const pad = document.getElementById('pad');
+    const histList = document.getElementById('hist');
+    const histEmpty = document.getElementById('hist-empty');
+
+    // 初始化：讀 localStorage
+    try {
+      const rawH = localStorage.getItem(storeKey);
+      if (rawH) state.history = JSON.parse(rawH);
+      const rawL = localStorage.getItem(storeLast);
+      if (rawL){
+        const last = JSON.parse(rawL);
+        if (typeof last.demand === 'number') state.demand = last.demand;
+        if (typeof last.perBox === 'number') state.perBox = last.perBox;
+        if (last.active === 'demand' || last.active === 'perBox') state.active = last.active;
+      }
+    } catch(e) {}
+
+    // 渲染
+    function render(){
+      vDemand.textContent = state.demand;
+      vPerBox.textContent = state.perBox;
+
+      fDemand.classList.toggle('active', state.active==='demand');
+      fPerBox.classList.toggle('active', state.active==='perBox');
+      fDemand.setAttribute('aria-pressed', state.active==='demand');
+      fPerBox.setAttribute('aria-pressed', state.active==='perBox');
+
+      const p = state.perBox;
+      if (!p || p <= 0){
+        warn.style.display = 'block';
+        document.getElementById('res').style.display = 'none';
+      } else {
+        warn.style.display = 'none';
+        document.getElementById('res').style.display = '';
+        const boxes = Math.floor(state.demand / p);
+        const remainder = state.demand - boxes * p;
+        const ceilBoxes = Math.ceil(state.demand / p);
+        const over = ceilBoxes * p - state.demand;
+        r1.textContent = `最省空間：${boxes} 箱 又 ${remainder} 個`;
+        r2.textContent = `滿箱出貨：${ceilBoxes} 箱 扣 ${over} 個`;
+      }
+
+      // 歷史
+      histList.innerHTML = '';
+      if (!state.history.length){
+        histEmpty.style.display = 'block';
+      } else {
+        histEmpty.style.display = 'none';
+        for (const h of state.history){
+          const li = document.createElement('li');
+          li.className = 'row space hist-item';
+          const left = document.createElement('button');
+          left.className = 'row';
+          left.style.flex = '1';
+          left.style.textAlign = 'left';
+          left.style.background = 'transparent';
+          left.style.border = '0';
+          left.style.cursor = 'pointer';
+          left.innerHTML = `
+            <div>
+              <div style="font-size:14px;font-weight:600">需求 ${h.demand}、每箱 ${h.perBox}</div>
+              <div class="muted" style="font-size:12px;margin-top:2px">最省空間：${h.boxes} 箱 + ${h.remainder} 個 ｜ 滿箱出貨：${h.ceilBoxes} 箱 - ${h.over} 個</div>
+              <div class="badge" style="margin-top:4px">${new Date(h.ts).toLocaleString()}</div>
+            </div>`;
+          left.addEventListener('click',()=>{
+            state.demand = h.demand; state.perBox = h.perBox; saveLast(); render();
+          });
+
+          const del = document.createElement('button');
+          del.className = 'btn ghost';
+          del.textContent = '刪除';
+          del.addEventListener('click',()=>{ removeHist(h.id); });
+
+          li.appendChild(left);
+          li.appendChild(del);
+          histList.appendChild(li);
+        }
+      }
+    }
+
+    // 輔助
+    function saveLast(){
+      try{ localStorage.setItem(storeLast, JSON.stringify({active:state.active,demand:state.demand,perBox:state.perBox})); }catch(e){}
+    }
+    function saveHist(){
+      try{ localStorage.setItem(storeKey, JSON.stringify(state.history.slice(0,200))); }catch(e){}
+    }
+    function removeHist(id){
+      state.history = state.history.filter(x=>x.id!==id);
+      saveHist(); render();
+    }
+    function cryptoId(){
+      if (window.crypto && crypto.getRandomValues){
+        const b = new Uint8Array(8); crypto.getRandomValues(b); return Array.from(b, x=>x.toString(16).padStart(2,'0')).join('');
+      }
+      return Math.random().toString(16).slice(2);
+    }
+
+    // 事件 - 切換/清空/保存
+    document.getElementById('swap').addEventListener('click',()=>{
+      state.active = state.active==='demand' ? 'perBox' : 'demand';
+      saveLast(); render();
+    });
+    document.getElementById('clear').addEventListener('click',()=>{
+      if (state.active==='demand') state.demand = 0; else state.perBox = 0; saveLast(); render();
+    });
+    document.getElementById('save').addEventListener('click',()=>{
+      if (!state.perBox || state.perBox<=0) return;
+      const p = state.perBox, d = state.demand;
+      const boxes = Math.floor(d/p), remainder = d - boxes*p, ceilBoxes = Math.ceil(d/p), over = ceilBoxes*p - d;
+      const item = {id:cryptoId(), ts:Date.now(), demand:d, perBox:p, boxes, remainder, ceilBoxes, over};
+      state.history = [item, ...state.history].slice(0,200);
+      saveHist(); render();
+    });
+    document.getElementById('clearHist').addEventListener('click',()=>{ state.history=[]; saveHist(); render(); });
+    document.getElementById('copy').addEventListener('click',async()=>{
+      const p = state.perBox, d = state.demand;
+      if (!p || p<=0) return;
+      const boxes = Math.floor(d/p), remainder = d - boxes*p, ceilBoxes = Math.ceil(d/p), over = ceilBoxes*p - d;
+      const text = `需求 ${d}、每箱 ${p} → 最省空間：${boxes} 箱 + ${remainder} 個；滿箱出貨：${ceilBoxes} 箱 - ${over} 個`;
+      try{ await navigator.clipboard.writeText(text); alert('已複製結果'); }catch(e){ alert('複製失敗，可手動選取'); }
+    });
+
+    // 事件 - 點擊欄位
+    fDemand.addEventListener('click',()=>{ state.active='demand'; saveLast(); render(); });
+    fPerBox.addEventListener('click',()=>{ state.active='perBox'; saveLast(); render(); });
+
+    // 快捷 nudge
+    document.querySelectorAll('[data-nudge]').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        const delta = parseInt(btn.getAttribute('data-nudge'),10);
+        if (state.active==='demand') state.demand = Math.max(0, state.demand + delta);
+        else state.perBox = Math.max(0, state.perBox + delta);
+        saveLast(); render();
+      });
+    });
+
+    // 數位鍵盤 - 只用按鈕，不出現輸入法
+    const keys = ['7','8','9','4','5','6','1','2','3','00','0','⌫'];
+    for (const k of keys){
+      const b = document.createElement('button');
+      b.className = 'k' + (k==='⌫' ? ' ghost' : '');
+      b.textContent = k;
+      b.addEventListener('click',()=>{
+        if (k==='⌫') backspace(); else append(k);
+      });
+      pad.appendChild(b);
+    }
+
+    function append(d){
+      const isDoubleZero = d==='00';
+      if (state.active==='demand'){
+        const s = String(state.demand);
+        const next = normalize(s + (isDoubleZero? '00' : d));
+        state.demand = clampLen(next, 10);
+      } else {
+        const s = String(state.perBox);
+        const next = normalize(s + (isDoubleZero? '00' : d));
+        state.perBox = clampLen(next, 7);
+      }
+      saveLast(); render();
+    }
+    function backspace(){
+      if (state.active==='demand'){
+        const s = String(state.demand);
+        state.demand = s.length>1 ? parseInt(s.slice(0,-1),10) : 0;
+      } else {
+        const s = String(state.perBox);
+        state.perBox = s.length>1 ? parseInt(s.slice(0,-1),10) : 0;
+      }
+      saveLast(); render();
+    }
+    function normalize(s){
+      // 去前導零
+      const n = parseInt(s||'0',10) || 0; return String(n);
+    }
+    function clampLen(s, max){
+      // 限制長度，避免過大
+      if (s.length>max) return parseInt(s.slice(0,max),10);
+      return parseInt(s,10);
+    }
+
+    // 首次渲染
+    render();
+  </script>
+</body>
+</html>
